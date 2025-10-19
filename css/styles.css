@@ -1,0 +1,837 @@
+/* Enhanced styles.css with linear chain merge functionality and improved path management layout */
+
+/* --- Global layout --- */
+body, html {
+  margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif;
+}
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 220px 1fr 250px; /* Wider menu for path management */
+  grid-template-areas:
+    "menu header header"
+    "menu viz info"
+    "debug debug debug";
+  height: 100%;
+}
+#menu {
+  grid-area: menu;
+  background: #f4f4f4;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+}
+#viz { grid-area: viz; background: #fff; }
+#info {
+  grid-area: info;
+  background: #f9f9f9;
+  padding: 10px;
+  border-left: 1px solid #ddd;
+  overflow-y: auto;
+}
+#debug {
+  grid-area: debug;
+  background: #222;
+  color: #0f0;
+  padding: 5px;
+  font-size: 12px;
+  height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+button, input { display: block; margin-bottom: 8px; width: 100%; }
+canvas { display: block; }
+
+/* --- Resolution Section Styles --- */
+.resolution-section {
+  margin: 15px 0;
+  padding: 10px 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+
+.resolution-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+#resolveVertex {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+
+#resolveVertex:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+#resolveVertex:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+#resolvePhysical {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 5px;
+}
+
+#resolvePhysical:hover:not(:disabled) {
+  background: #1e7e34;
+}
+
+#resolvePhysical:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+/* --- ENHANCED: Linear Chain Merge Section Styles --- */
+.merge-section {
+  margin: 15px 0;
+  padding: 10px 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+
+.merge-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+#mergeNodes {
+  background: #6f42c1;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+#mergeNodes:hover:not(:disabled) {
+  background: #5a32a3;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(111, 66, 193, 0.3);
+}
+
+#mergeNodes:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+#exportMergedSequence {
+  background: #fd7e14;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+#exportMergedSequence:hover:not(:disabled) {
+  background: #e8680a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(253, 126, 20, 0.3);
+}
+
+#exportMergedSequence:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Animation for merge button when enabled */
+@keyframes pulse-merge {
+  0% { box-shadow: 0 0 0 0 rgba(111, 66, 193, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(111, 66, 193, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(111, 66, 193, 0); }
+}
+
+#mergeNodes:not(:disabled):hover {
+  animation: pulse-merge 1.5s infinite;
+}
+
+/* Visual indicator for linear chain nodes (optional - can be added to renderer) */
+.linear-chain-node {
+  border: 2px dashed #6f42c1 !important;
+  background: rgba(111, 66, 193, 0.1) !important;
+}
+
+.branch-node {
+  border: 2px solid #dc3545 !important;
+  background: rgba(220, 53, 69, 0.1) !important;
+}
+
+/* --- UPDATED: Path Management Styles --- */
+#pathManagement {
+  margin: 15px 0;
+  padding: 10px 0;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+
+#pathManagement h4 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.path-input-section {
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.path-input-section label {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 3px;
+  display: block;
+}
+
+.path-input-section input {
+  font-size: 12px;
+  padding: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+}
+
+.path-buttons {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.path-buttons button {
+  flex: 1;
+  font-size: 11px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.save-btn {
+  background: #28a745;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.highlight-btn {
+  background: #17a2b8;
+  color: white;
+}
+
+.highlight-btn:hover {
+  background: #138496;
+}
+
+.path-help {
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+}
+
+/* UPDATED: Navigation Layout */
+.nav-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+/* Path counter on its own line */
+.nav-header-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-header-actions {
+  display: flex;
+  gap: 3px;
+}
+
+/* Update button sizing for better layout */
+.nav-header-actions button {
+  font-size: 9px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-bottom: 0;
+  width: auto;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Specific button styles */
+.export-paths-btn {
+  background: #6f42c1;
+  color: white;
+}
+
+.export-paths-btn:hover:not(:disabled) {
+  background: #5a32a3;
+}
+
+.export-btn {
+  background: #17a2b8;
+  color: white;
+}
+
+.export-btn:hover:not(:disabled) {
+  background: #138496;
+}
+
+.clear-all-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.clear-all-btn:hover:not(:disabled) {
+  background: #c82333;
+}
+
+/* Disabled state for all action buttons */
+.nav-header-actions button:disabled {
+  background: #6c757d !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Path counter styling - centered above buttons */
+#pathCounter {
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* Bottom row: navigation controls */
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+  padding: 6px 3px;
+}
+
+.nav-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-bottom: 0;
+  width: auto;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.nav-btn:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
+#currentPathDisplay {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  color: #333;
+  background: white;
+  padding: 5px 8px;
+  border-radius: 3px;
+  border: 1px solid #dee2e6;
+  margin: 0 2px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+/* Keyboard shortcuts - move to bottom */
+.keyboard-shortcuts {
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+  margin-top: 8px;
+  padding: 4px;
+  background: #f8f9fa;
+  border-radius: 3px;
+}
+
+/* Saved Paths List */
+#savedPathsList {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.no-paths {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  font-size: 12px;
+  padding: 20px 10px;
+}
+
+.saved-path {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.saved-path:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.saved-path.active {
+  background: #d1ecf1;
+  border-color: #17a2b8;
+  box-shadow: 0 0 0 1px rgba(23, 162, 184, 0.25);
+}
+
+.path-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.path-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.path-name {
+  flex: 1;
+  font-weight: bold;
+  font-size: 12px;
+  color: #333;
+}
+
+.delete-path {
+  background: #dc3545;
+  color: white;
+  border: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-bottom: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.delete-path:hover {
+  opacity: 1;
+  background: #c82333;
+}
+
+.path-sequence {
+  font-family: monospace;
+  font-size: 11px;
+  color: #495057;
+  background: rgba(0,0,0,0.05);
+  padding: 3px 6px;
+  border-radius: 2px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.path-stats {
+  font-size: 10px;
+  color: #6c757d;
+}
+
+/* --- Vertex Resolution Dialog Styles --- */
+#resolveDialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 1000;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+#resolveDialog h3 {
+  margin-top: 0;
+  color: #333;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 10px;
+}
+
+.path-combination {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f9f9f9;
+}
+
+.path-combination:hover {
+  background: #e9f5ff;
+}
+
+.path-combination.physical-combination {
+  background: #f0f8ff;
+  border-color: #b3d9ff;
+}
+
+.path-combination.physical-combination:hover {
+  background: #e1f5fe;
+}
+
+.path-combination input[type="checkbox"] {
+  margin-right: 10px;
+  transform: scale(1.2);
+  width: auto;
+  display: inline;
+}
+
+.path-combination label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-family: monospace;
+  font-size: 14px;
+  margin-bottom: 0;
+}
+
+.edge-info {
+  margin-left: 5px;
+  color: #666;
+  font-size: 12px;
+}
+
+.incoming-edge {
+  color: #d73027;
+  font-weight: bold;
+}
+
+.outgoing-edge {
+  color: #1a9850;
+  font-weight: bold;
+}
+
+.red-connection {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.green-connection {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.dialog-buttons {
+  margin-top: 20px;
+  text-align: right;
+}
+
+.dialog-buttons button {
+  margin-left: 10px;  
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  width: auto;
+  display: inline-block;
+}
+
+.dialog-buttons .confirm-btn {
+  background: #28a745;
+  color: white;
+}
+
+.dialog-buttons .cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.dialog-buttons button:hover {
+  opacity: 0.8;
+}
+
+#dialogOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 999;
+}
+
+.vertex-info {
+  background: #e3f2fd;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.stats {
+  font-size: 12px;
+  color: #666;
+  margin-top: 10px;
+}
+
+/* Scrollbar styling for webkit browsers */
+#savedPathsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#savedPathsList::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+#savedPathsList::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+#savedPathsList::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Import file section */
+.import-file-section {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+.import-file-section label {
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.import-file-section input[type="file"] {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.import-btn {
+  background: #17a2b8;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.import-btn:hover {
+  background: #138496;
+}
+
+.import-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.import-help {
+  font-size: 10px;
+  color: #666;
+}
+
+/* ENHANCED: Merged node styling in info panel */
+.merged-node-info {
+  background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%);
+  border: 2px solid #4caf50;
+  border-radius: 6px;
+  padding: 12px;
+  margin: 10px 0;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.1);
+}
+
+.merged-node-info h4 {
+  margin: 0 0 8px 0;
+  color: #2e7d32;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.merged-node-detail {
+  font-size: 12px;
+  margin: 4px 0;
+  color: #333;
+}
+
+.merged-node-list {
+  font-family: monospace;
+  font-size: 11px;
+  background: rgba(76, 175, 80, 0.15);
+  padding: 6px 8px;
+  border-radius: 3px;
+  margin: 6px 0;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+/* ENHANCED: Linear Chain Merging Instructions styling */
+#mergeInstructions {
+  display: block;
+  margin-top: 15px;
+  padding: 12px;
+  background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%);
+  border: 2px solid #4caf50;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.1);
+}
+
+#mergeInstructions strong {
+  color: #2e7d32;
+  font-weight: bold;
+}
+
+/* Merge result indicator */
+.merge-success-indicator {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 12px;
+  animation: fadeInScale 0.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Linear chain visualization hints (for future use) */
+.chain-detection-preview {
+  background: rgba(111, 66, 193, 0.1);
+  border: 2px dashed #6f42c1;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 8px 0;
+  font-size: 11px;
+  color: #6f42c1;
+  font-weight: bold;
+  text-align: center;
+}
+
+.chain-node-preview {
+  display: inline-block;
+  background: #6f42c1;
+  color: white;
+  padding: 2px 6px;
+  margin: 0 2px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.branch-indicator {
+  color: #dc3545;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1200px) {
+  #app {
+    grid-template-columns: 200px 1fr 230px;
+  }
+  
+  .nav-header-actions button {
+    font-size: 8px;
+    padding: 3px 5px;
+  }
+  
+  #mergeNodes, #exportMergedSequence {
+    font-size: 10px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 180px 1fr 200px;
+  }
+  
+  #mergeInstructions {
+    font-size: 11px;
+    padding: 10px;
+  }
+}
