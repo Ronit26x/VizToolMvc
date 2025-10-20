@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Graph Visualization Tool</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/graphlib@2.1.8/dist/graphlib.min.js"></script>
+  <script src="https://unpkg.com/graphlib-dot@0.6.2/dist/graphlib-dot.min.js"></script>
+
+  <!-- MVC Architecture Initialization -->
+  <script type="module">
+    import { GraphModel } from './js/core/GraphModel.js';
+    import { GraphView } from './js/core/GraphView.js';
+    import { GraphController } from './js/core/GraphController.js';
+    import { LayoutManager } from './js/core/LayoutManager.js';
+
+    // Wait for DOM to be ready
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Initialize MVC system
+      window.graphApp = {
+        model: new GraphModel(),
+        view: new GraphView(canvas, ctx),
+        layout: null,
+        controller: null
+      };
+
+      // Initialize layout manager with model
+      window.graphApp.layout = new LayoutManager(window.graphApp.model);
+
+      // Initialize controller with model, view, and layout
+      window.graphApp.controller = new GraphController(
+        window.graphApp.model,
+        window.graphApp.view,
+        window.graphApp.layout
+      );
+
+      console.log('[MVC] Architecture initialized');
+    });
+  </script>
+
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <div id="menu">
+      <h3>Menu</h3>
+      <input type="file" id="fileInput" accept=".dot,.gfa" />
+      <button id="genRandom">Generate Random Graph</button>
+      <button id="resetView">Return to Default View</button>
+      <button id="pinNode">Pin Selected Node</button>
+      <button id="flipNode" style="display: none;">Flip Selected Node ↻</button>
+      
+      <!-- VERTEX RESOLUTION SECTION -->
+      <div class="resolution-section">
+        <h4>Vertex Resolution</h4>
+        <button id="resolveVertex" disabled>Resolve Vertex</button>
+        <button id="resolvePhysical" disabled>Resolve Physical</button>
+      </div>
+      
+      <!-- NEW: NODE MERGING SECTION -->
+      <div class="merge-section">
+        <h4>Node Merging</h4>
+        <button id="mergeNodes" disabled>Merge Selected Nodes</button>
+        <button id="exportMergedSequence" disabled>Export Merged Sequence</button>
+      </div>
+      
+      <button id="redraw">Redraw Layout</button>
+      
+      <!-- ENHANCED PATH MANAGEMENT SECTION -->
+      <div id="pathManagement">
+        <h4>Path Management</h4>
+        
+        <!-- Path Input Section -->
+        <div class="path-input-section">
+          <label for="pathSequence">Path Sequence:</label>
+          <input type="text" id="pathSequence" placeholder="e.g. 1,2,3,4" />
+          
+          <label for="pathName">Path Name (optional):</label>
+          <input type="text" id="pathName" placeholder="e.g. Main Assembly Path" />
+          
+          <div class="path-buttons">
+            <button id="savePath" class="save-btn">Save Path</button>
+            <button id="highlightPath" class="highlight-btn">Quick View</button>
+          </div>
+          
+          <div class="path-help">
+            <small>
+              <strong>Enter:</strong> Quick view &nbsp;
+              <strong>Ctrl+Enter:</strong> Save path
+            </small>
+          </div>
+        </div>
+        
+        <!-- NEW: Path Import Section -->
+        <div class="import-file-section">
+          <label for="pathFileInput">Import Paths from File:</label>
+          <input type="file" id="pathFileInput" accept=".txt,.paths" />
+          <button id="importPaths" class="import-btn" disabled>Import Paths</button>
+          
+          <div class="import-help" style="margin-top: 8px;">
+            <small>
+              <strong>Format:</strong> node1, node2, node3 /Path Name<br>
+              <strong>Example:</strong> -352234.21, 312819.10 /Assembly Path 1
+            </small>
+          </div>
+        </div>
+        
+        <div id="pathNavigation" style="display: none;">
+          <div class="nav-header">
+            <!-- Path counter on its own line -->
+            <div class="nav-header-top">
+              <span id="pathCounter">0 paths saved</span>
+              <!-- Action buttons below counter -->
+              <div class="nav-header-actions">
+                <button id="exportAllPaths" class="export-paths-btn" disabled>Export All</button>
+                <button id="clearAllPaths" class="clear-all-btn">Clear All</button>
+                <button id="exportPathSequence" class="export-btn" disabled>Export Sequence</button>
+              </div>
+            </div>
+            
+            <!-- Bottom row: navigation controls -->
+            <div class="nav-controls">
+              <button id="prevPath" class="nav-btn">‹ Prev</button>
+              <div id="currentPathDisplay">No paths</div>
+              <button id="nextPath" class="nav-btn">Next ›</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Saved Paths List -->
+        <div id="savedPathsList">
+          <div class="no-paths">No saved paths</div>
+        </div>
+      </div>
+      
+      <button id="removeNodes">Remove Selected Nodes</button>
+      <button id="undo">Undo</button>
+      
+      <div id="flipInstructions" style="display: none; margin-top: 15px; padding: 10px; background: #f0f8ff; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+        <strong>GFA Node Flipping:</strong><br>
+        • <strong>Click</strong> to select a node<br>
+        • Use <strong>Flip Button</strong> for selected node<br>
+        • Red dot = incoming end<br>
+        • Green dot = outgoing end
+      </div>
+
+      <div id="resolveInstructions" style="display: none; margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; font-size: 12px;">
+        <strong>Vertex Resolution:</strong><br>
+        • <strong>Resolve Vertex</strong> - Logical graph connections<br>
+        • <strong>Resolve Physical</strong> - Red/Green subnode connections<br>
+        • <strong>Click</strong> to select a vertex<br>
+        • Choose which paths to keep<br>
+        • Creates new vertices for each path
+      </div>
+      
+      <!-- NEW: Merge Instructions -->
+      <div id="mergeInstructions" style="display: block; margin-top: 15px; padding: 10px; background: #e8f5e8; border: 1px solid #4caf50; border-radius: 4px; font-size: 12px;">
+        <strong>🔗 Linear Chain Merging:</strong><br>
+        • <strong>Select any single node</strong> in a linear chain<br>
+        • Use <strong>Merge Linear Chain</strong> to automatically detect and merge<br>
+        • <strong>Algorithm traces backwards and forwards</strong> from selected node<br>
+        • Only merges non-branching nodes (1 in + 1 out connections)<br>
+        • <strong>Stops at branch points</strong> (nodes with multiple connections)<br>
+        • <strong>Preserves external connections</strong> to/from the chain<br>
+        • Click merged node to see chain details and export sequence
+      </div>
+    </div>
+    <div id="viz">
+      <canvas id="canvas"></canvas>
+    </div>
+    <div id="info">
+      <h3>Information Panel</h3>
+      <div id="infoContent">Select a node or edge to see details here.</div>
+    </div>
+    <div id="debug"></div>
+
+    <!-- Vertex Resolution Dialog -->
+    <div id="dialogOverlay" style="display: none;"></div>
+    <div id="resolveDialog" style="display: none;">
+      <h3>Resolve Vertex</h3>
+      <div id="physicalModeIndicator" style="display: none; background: #e1f5fe; padding: 5px; margin-bottom: 10px; border-radius: 4px; font-weight: bold; color: #0277bd;">
+        🔄 Physical Resolution Mode - Based on Red/Green Subnode Connections
+      </div>
+      <div id="vertexInfo" class="vertex-info"></div>
+      <div id="pathCombinations"></div>
+      <div class="stats" id="resolutionStats"></div>
+      <div class="dialog-buttons">
+        <button class="cancel-btn" id="cancelResolve">Cancel</button>
+        <button class="confirm-btn" id="confirmResolve">Resolve Vertex</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Show/hide format-specific controls based on loaded format
+    function updateUIForFormat(format) {
+      const flipButton = document.getElementById('flipNode');
+      const flipInstructions = document.getElementById('flipInstructions');
+      const resolveInstructions = document.getElementById('resolveInstructions');
+      const mergeInstructions = document.getElementById('mergeInstructions');
+      
+      if (format === 'gfa') {
+        flipButton.style.display = 'block';
+        flipInstructions.style.display = 'block';
+        resolveInstructions.style.display = 'block';
+        mergeInstructions.style.display = 'block';
+      } else {
+        flipButton.style.display = 'none';
+        flipInstructions.style.display = 'none';
+        resolveInstructions.style.display = 'block'; // Resolution works for both formats
+        mergeInstructions.style.display = 'block'; // Merging works for both formats
+      }
+    }
+    
+    // Make function available globally so main.js can call it
+    window.updateUIForFormat = updateUIForFormat;
+  </script>
+</body>
+</html>

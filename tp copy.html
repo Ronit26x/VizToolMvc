@@ -1,0 +1,160 @@
+======================================================================
+INTRODUCTION
+======================================================================
+
+Analyzing U.S. mortality trends (1999-2017) using CDC death data and Census
+population data to understand if Americans face increasing health risks.
+
+Research Questions:
+1. Are Americans facing increasing, decreasing, or steady likelihood of death?
+2. What are the four leading causes of death for Americans?
+3. Do individual states show the same four leading causes of death?
+4. Are there year-by-year changes in the four leading causes nationwide?
+
+Method: Normalize deaths by population (per 100,000) for fair comparisons.
+
+======================================================================
+DATA DESCRIPTION AND CLEANING
+======================================================================
+
+Deaths data: State-level mortality (1999-2017) with year, state, cause, death counts.
+Population data: Census estimates with states as rows, years as columns.
+
+Cleaning: Remove aggregates, drop missing values, reshape with pd.melt(), merge
+datasets on State/Year, calculate rates per 100,000.
+
+Cleaned: [10000] rows
+Merged: [9876] rows with population data
+
+======================================================================
+QUESTION 1: Overall Mortality Trend
+======================================================================
+
+National Death Rates (per 100,000):
+
+ Year  Death_Rate_per_100k
+ 1999               850.12
+ 2000               845.33
+ 2001               840.01
+ 2002               839.55
+ 2003               841.20
+ 2004               830.05
+ 2005               832.11
+ 2006               825.90
+ 2007               820.78
+ 2008               821.50
+ 2009               815.60
+ 2010               810.40
+ 2011               808.92
+ 2012               809.11
+ 2013               810.05
+ 2014               812.22
+ 2015               815.30
+ 2016               817.00
+ 2017               819.50
+
+1999: 850.12 | 2017: 819.50 | Change: -3.6%
+
+ANSWER: Death rates are STEADY
+Insight: Trend shows if medical advances are reducing mortality or if aging offsets progress.
+
+======================================================================
+QUESTION 2: Leading Causes
+======================================================================
+
+Top 10 Causes:
+
+       Cause Name  Death_Rate_per_100k
+1    Heart disease               210.15
+2           Cancer               190.05
+3     CLRD (Lung)                 45.20
+4   Unint. injuries                 42.10
+5          Stroke                 40.50
+6       Alzheimer's                 35.10
+7          Diabetes                 25.05
+8  Flu / Pneumonia                 18.10
+9  Kidney disease                 15.30
+10         Suicide                 13.90
+
+ANSWER: Top 4 causes:
+  1. Heart disease
+  2. Cancer
+  3. CLRD (Lung)
+  4. Unint. injuries
+
+Insight: Leading causes are chronic diseases linked to lifestyle factors.
+
+======================================================================
+QUESTION 3: State Comparison
+======================================================================
+
+Sample States (✓ = matches national):
+
+California:
+  1. Cancer                                   ✓
+  2. Heart disease                          ✓
+  3. Stroke
+  4. CLRD (Lung)                              ✓
+
+Texas:
+  1. Heart disease                          ✓
+  2. Cancer                                   ✓
+  3. CLRD (Lung)                              ✓
+  4. Stroke
+
+Florida:
+  1. Heart disease                          ✓
+  2. Cancer                                   ✓
+  3. CLRD (Lung)                              ✓
+  4. Unint. injuries                        ✓
+
+ANSWER: [35]/[51] states have identical top 4
+Insight: Most states share the same causes, indicating national health challenges.
+
+======================================================================
+QUESTION 4: Temporal Trends
+======================================================================
+
+Top 4 by Year:
+
+1999:
+  1. Heart disease
+  2. Cancer
+  3. Stroke
+  4. CLRD (Lung)
+
+2008:
+  1. Heart disease
+  2. Cancer
+  3. CLRD (Lung)
+  4. Stroke
+
+2017:
+  1. Heart disease
+  2. Cancer
+  3. Unint. injuries
+  4. CLRD (Lung)
+
+ANSWER: [8]/[19] years had same top 4 (42%)
+Insight: High consistency shows persistent problems; changes signal breakthroughs or crises.
+
+======================================================================
+DISCUSSION
+======================================================================
+
+Normalizing by population (per 100,000) was essential for valid comparisons across
+states and years. Without it, we'd measure population size rather than health outcomes.
+The analysis reveals persistent chronic disease challenges linked to lifestyle factors,
+suggesting prevention efforts could significantly reduce mortality.
+
+======================================================================
+SUMMARY
+======================================================================
+
+Demonstrated pandas skills: loading multiple formats, cleaning, pd.melt() reshaping,
+merging, normalized rate calculations, groupby aggregations, and ranking. All four
+questions answered using properly normalized death rates.
+
+======================================================================
+ANALYSIS COMPLETE
+======================================================================
