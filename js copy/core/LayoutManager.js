@@ -39,7 +39,8 @@ export class LayoutManager extends EventEmitter {
     // When graph is loaded, restart simulation
     this.model.on('graphLoaded', ({ nodes, links, source }) => {
       if (source !== this.layoutSourceTag) {
-        this.start(nodes, links);
+        // Use actual arrays from model, not event copies
+        this.start(this.model._nodes, this.model._links);
       }
     });
 
@@ -86,6 +87,19 @@ export class LayoutManager extends EventEmitter {
         }
       }
     });
+
+    // When nodes are merged, update simulation data
+    this.model.on('nodesMerged', () => {
+      console.log('[LayoutManager] nodesMerged event received! isRunning:', this.isRunning);
+      if (this.simulation) {
+        console.log('[LayoutManager] Updating simulation data...');
+        this.updateSimulationData();
+      } else {
+        console.warn('[LayoutManager] nodesMerged received but no simulation exists');
+      }
+    });
+
+    console.log('[LayoutManager] Event listeners registered, including nodesMerged');
   }
 
   // ===== SIMULATION CONTROL =====
@@ -94,6 +108,13 @@ export class LayoutManager extends EventEmitter {
    * Start simulation with nodes and links
    */
   start(nodes, links, canvasWidth = 800, canvasHeight = 600) {
+    console.log(`🔧 [LayoutManager] start() called with ${nodes.length} nodes and ${links.length} links`);
+
+    // DIAGNOSTIC: Check if we're receiving the actual arrays or copies
+    console.log('[LayoutManager] Are we using actual model arrays?',
+      nodes === this.model._nodes ? '✅ YES (nodes)' : '❌ NO (nodes)',
+      links === this.model._links ? '✅ YES (links)' : '❌ NO (links)');
+
     if (this.simulation) {
       this.stop();
     }
@@ -111,6 +132,7 @@ export class LayoutManager extends EventEmitter {
       .on('tick', () => this._onTick())
       .on('end', () => this._onEnd());
 
+    console.log('[LayoutManager] ✅ Simulation started');
     return this.simulation;
   }
 
@@ -131,6 +153,71 @@ export class LayoutManager extends EventEmitter {
     if (this.simulation) {
       this.simulation.alpha(1).restart();
     }
+  }
+
+  /**
+   * Update simulation data (nodes and links) without recreating simulation
+   * This is used when the graph structure changes (e.g., nodes merged)
+   */
+  updateSimulationData() {
+    if (!this.simulation) {
+      console.warn('[LayoutManager] Cannot update simulation data - no simulation exists');
+      return;
+    }
+
+    console.log('🔧 [LayoutManager] CRITICAL FIX ACTIVE - Using _nodes and _links directly (not getters)');
+
+    // CRITICAL: Must use the ACTUAL arrays, not copies, so D3 can mutate them
+    const nodes = this.model._nodes;
+    const links = this.model._links;
+
+    console.log(`[LayoutManager] Updating simulation with ${nodes.length} nodes and ${links.length} links`);
+
+    // DIAGNOSTIC: Log link objects BEFORE D3 processes them
+    console.log('[LayoutManager] Links BEFORE D3 initialization:');
+    links.forEach((link, i) => {
+      const srcType = typeof link.source;
+      const tgtType = typeof link.target;
+      const srcVal = link.source?.id || link.source;
+      const tgtVal = link.target?.id || link.target;
+      console.log(`  Link ${i}: ${srcVal} (${srcType}) → ${tgtVal} (${tgtType})`);
+    });
+
+    // Update nodes
+    this.simulation.nodes(nodes);
+
+    // IMPORTANT: Create new link force and let D3 initialize it properly
+    // D3 will mutate the link objects, replacing string IDs with node object references
+    const newLinkForce = d3.forceLink(links)
+      .id(d => d.id)
+      .distance(100);
+
+    // Replace the link force
+    this.simulation.force('link', newLinkForce);
+
+    // DIAGNOSTIC: Log link objects AFTER D3 processes them
+    console.log('[LayoutManager] Links AFTER D3 initialization:');
+    links.forEach((link, i) => {
+      const srcType = typeof link.source;
+      const tgtType = typeof link.target;
+      const srcVal = link.source?.id || link.source;
+      const tgtVal = link.target?.id || link.target;
+      console.log(`  Link ${i}: ${srcVal} (${srcType}) → ${tgtVal} (${tgtType})`);
+    });
+
+    // DIAGNOSTIC: Verify the link force was properly created
+    const linkForce = this.simulation.force('link');
+    if (linkForce) {
+      console.log(`[LayoutManager] Link force created successfully with ${linkForce.links().length} links`);
+    } else {
+      console.error('[LayoutManager] CRITICAL: Link force is NULL!');
+    }
+
+    // Mark as running and restart simulation with LOW energy (gentle repositioning)
+    this.isRunning = true;
+    this.simulation.alpha(0.1).restart();
+
+    console.log('[LayoutManager] ✅ Simulation restarted with updated data');
   }
 
   /**

@@ -198,6 +198,71 @@ export class GraphModel extends EventEmitter {
   }
 
   /**
+   * Merge multiple nodes into a single node (complex atomic operation)
+   * This is a specialized operation for node merging that handles edges properly
+   */
+  mergeNodes(nodeIdsToMerge, mergedNode, newEdges, source = 'operation') {
+    this._saveHistory('mergeNodes');
+
+    const idsToRemove = new Set(nodeIdsToMerge.map(id => String(id)));
+
+    // Remove original nodes
+    this._nodes = this._nodes.filter(node => !idsToRemove.has(String(node.id)));
+
+    // Remove ALL links involving the removed nodes (internal and external)
+    this._links = this._links.filter(link => {
+      const sourceId = String(link.source?.id || link.source);
+      const targetId = String(link.target?.id || link.target);
+      return !idsToRemove.has(sourceId) && !idsToRemove.has(targetId);
+    });
+
+    // Add the merged node
+    this._nodes.push(mergedNode);
+
+    // Add new edges
+    console.log(`[GraphModel] Adding ${newEdges.length} new edges to model`);
+    newEdges.forEach((edge, i) => {
+      const srcOri = edge.srcOrientation || '';
+      const tgtOri = edge.tgtOrientation || '';
+      console.log(`  [${i+1}] ${edge.source}${srcOri} → ${edge.target}${tgtOri}`, edge);
+      this._links.push(edge);
+    });
+    console.log(`[GraphModel] Total links after merge: ${this._links.length}`);
+
+    // DEBUG: Check if merged node has any links
+    const mergedNodeId = mergedNode.id;
+    const mergedNodeLinks = this._links.filter(link => {
+      const sourceId = String(link.source?.id || link.source);
+      const targetId = String(link.target?.id || link.target);
+      return sourceId === mergedNodeId || targetId === mergedNodeId;
+    });
+    console.log(`[GraphModel] DEBUG: Merged node ${mergedNodeId} has ${mergedNodeLinks.length} links:`, mergedNodeLinks);
+
+    // Update selections
+    idsToRemove.forEach(id => {
+      this._selectedNodes.delete(id);
+      this._pinnedNodes.delete(id);
+    });
+
+    // Rebuild maps
+    this._rebuildMaps();
+
+    console.log(`[GraphModel] Emitting nodesMerged event`);
+    this.emit('nodesMerged', {
+      removedNodeIds: Array.from(idsToRemove),
+      mergedNode: { ...mergedNode },
+      newEdgeCount: newEdges.length,
+      source
+    });
+    this.emit('stateChanged', {
+      type: 'nodesMerged',
+      data: { mergedNodeId: mergedNode.id, removedCount: idsToRemove.size },
+      source
+    });
+    this.emit('historyChanged', { canUndo: this.canUndo, canRedo: false });
+  }
+
+  /**
    * Update node position
    */
   updateNodePosition(nodeId, x, y, source = 'user') {

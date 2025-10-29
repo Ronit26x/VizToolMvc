@@ -29,6 +29,7 @@ export class GfaRenderer extends Renderer {
     // Cached GFA visual nodes
     this.gfaVisualNodes = [];
     this.lastScaleFactor = 1.0;
+    this.lastNodeCount = 0;
   }
 
   /**
@@ -50,17 +51,26 @@ export class GfaRenderer extends Renderer {
     } = renderData;
 
     // Create or update GFA visual nodes
-    if (this.gfaVisualNodes.length === 0 || this.lastScaleFactor !== scaleFactor) {
+    // Recreate if: no nodes, scale changed, OR node count changed (merge/split operations)
+    if (this.gfaVisualNodes.length === 0 ||
+        this.lastScaleFactor !== scaleFactor ||
+        this.lastNodeCount !== nodes.length) {
+      console.log(`[GfaRenderer] Recreating visual nodes (count: ${this.lastNodeCount} → ${nodes.length})`);
       this.calculateAutoNodeLength(nodes);
       this.gfaVisualNodes = nodes.map(node => new GfaVisualNode(node, scaleFactor, this.settings));
       this.lastScaleFactor = scaleFactor;
+      this.lastNodeCount = nodes.length;
+
+      // Run layout algorithm to calculate initial orientations
+      this.layoutGfaNodes(this.gfaVisualNodes, edges);
     }
 
-    // Update positions from simulation
-    this.gfaVisualNodes.forEach((gfaNode, i) => {
-      if (nodes[i]) {
-        gfaNode.x = nodes[i].x;
-        gfaNode.y = nodes[i].y;
+    // Update positions from simulation (match by ID, not index)
+    this.gfaVisualNodes.forEach((gfaNode) => {
+      const modelNode = nodes.find(n => n.id === gfaNode.id);
+      if (modelNode) {
+        gfaNode.x = modelNode.x;
+        gfaNode.y = modelNode.y;
 
         // Apply dynamic rotation
         gfaNode.applyDynamicRotation(nodes, edges, 0.05);
@@ -119,6 +129,127 @@ export class GfaRenderer extends Renderer {
     } else {
       this.settings.autoNodeLengthPerMegabase = 10000.0;
     }
+  }
+
+  /**
+   * Layout GFA nodes - calculate optimal orientation based on connections
+   * Ported from legacy gfa-layout.js
+   */
+  layoutGfaNodes(gfaNodes, links) {
+    // Create node map for quick lookup
+    const nodeMap = new Map();
+    gfaNodes.forEach(node => nodeMap.set(node.id, node));
+
+    // Build adjacency lists
+    const connections = new Map();
+    gfaNodes.forEach(node => connections.set(node.id, { incoming: [], outgoing: [] }));
+
+    links.forEach(link => {
+      const sourceId = link.source.id || link.source;
+      const targetId = link.target.id || link.target;
+
+      if (connections.has(sourceId)) {
+        connections.get(sourceId).outgoing.push({
+          nodeId: targetId,
+          orientation: link.tgtOrientation || '+'
+        });
+      }
+      if (connections.has(targetId)) {
+        connections.get(targetId).incoming.push({
+          nodeId: sourceId,
+          orientation: link.srcOrientation || '+'
+        });
+      }
+    });
+
+    // Phase 1: Calculate base angles - point toward outgoing or away from incoming
+    gfaNodes.forEach(node => {
+      const conn = connections.get(node.id);
+      let targetAngle = 0;
+      let angleSet = false;
+
+      // Priority 1: Point toward outgoing edges
+      if (conn.outgoing.length > 0) {
+        let totalX = 0, totalY = 0, count = 0;
+
+        conn.outgoing.forEach(({ nodeId }) => {
+          const targetNode = nodeMap.get(nodeId);
+          if (targetNode) {
+            const dx = targetNode.x - node.x;
+            const dy = targetNode.y - node.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+              totalX += dx / dist;
+              totalY += dy / dist;
+              count++;
+            }
+          }
+        });
+
+        if (count > 0) {
+          targetAngle = Math.atan2(totalY / count, totalX / count);
+          angleSet = true;
+        }
+      }
+
+      // Priority 2: Point away from incoming edges
+      if (!angleSet && conn.incoming.length > 0) {
+        let totalX = 0, totalY = 0, count = 0;
+
+        conn.incoming.forEach(({ nodeId }) => {
+          const sourceNode = nodeMap.get(nodeId);
+          if (sourceNode) {
+            const dx = node.x - sourceNode.x;
+            const dy = node.y - sourceNode.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0) {
+              totalX += dx / dist;
+              totalY += dy / dist;
+              count++;
+            }
+          }
+        });
+
+        if (count > 0) {
+          targetAngle = Math.atan2(totalY / count, totalX / count);
+          angleSet = true;
+        }
+      }
+
+      // Set calculated angle or default
+      node.angle = angleSet ? targetAngle : 0;
+      node.updatePosition();
+    });
+
+    // Phase 2: Smooth linear paths (1 in, 1 out)
+    gfaNodes.forEach(node => {
+      const conn = connections.get(node.id);
+
+      if (conn.incoming.length === 1 && conn.outgoing.length === 1) {
+        const sourceNode = nodeMap.get(conn.incoming[0].nodeId);
+        const targetNode = nodeMap.get(conn.outgoing[0].nodeId);
+
+        if (sourceNode && targetNode) {
+          const inDx = node.x - sourceNode.x;
+          const inDy = node.y - sourceNode.y;
+          const outDx = targetNode.x - node.x;
+          const outDy = targetNode.y - node.y;
+
+          const inDist = Math.sqrt(inDx * inDx + inDy * inDy);
+          const outDist = Math.sqrt(outDx * outDx + outDy * outDy);
+
+          if (inDist > 0 && outDist > 0) {
+            const avgDx = (inDx / inDist + outDx / outDist) / 2;
+            const avgDy = (inDy / inDist + outDy / outDist) / 2;
+
+            if (avgDx !== 0 || avgDy !== 0) {
+              node.angle = Math.atan2(avgDy, avgDx);
+              node.updatePosition();
+            }
+          }
+        }
+      }
+    });
   }
 
   /**
@@ -283,6 +414,7 @@ export class GfaRenderer extends Renderer {
   clearCache() {
     this.gfaVisualNodes = [];
     this.lastScaleFactor = 1.0;
+    this.lastNodeCount = 0;
   }
 }
 
@@ -303,6 +435,9 @@ class GfaVisualNode {
     this.segments = [];
     this.scaleFactor = scaleFactor;
     this.settings = settings;
+
+    // Disable dynamic rotation for merged nodes to preserve orientation
+    this.isMergedNode = nodeData.gfaType === 'merged_segment';
 
     this.width = this.calculateWidth();
     this.drawnLength = this.calculateDrawnLength(scaleFactor);
@@ -430,7 +565,7 @@ class GfaVisualNode {
   }
 
   applyDynamicRotation(allNodes, links, rotationStrength = 0.1) {
-    if (this._skipDynamicRotation) return;
+    if (this._skipDynamicRotation || this.isMergedNode) return;
 
     const optimalAngle = this.calculateOptimalRotation(allNodes, links);
 

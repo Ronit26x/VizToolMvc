@@ -55,7 +55,7 @@ export function layoutGfaNodes(gfaNodes, links) {
       if (count > 0) {
         targetAngle = Math.atan2(totalY / count, totalX / count);
         angleSet = true;
-        console.log(`Node ${node.id}: pointing toward ${conn.outgoing.length} outgoing edge(s) at ${(targetAngle * 180 / Math.PI).toFixed(1)}°`);
+        // console.log(`Node ${node.id}: pointing toward ${conn.outgoing.length} outgoing edge(s) at ${(targetAngle * 180 / Math.PI).toFixed(1)}°`);
       }
     }
     
@@ -80,7 +80,7 @@ export function layoutGfaNodes(gfaNodes, links) {
       if (count > 0) {
         targetAngle = Math.atan2(totalY / count, totalX / count);
         angleSet = true;
-        console.log(`Node ${node.id}: pointing away from ${conn.incoming.length} incoming edge(s) at ${(targetAngle * 180 / Math.PI).toFixed(1)}°`);
+        // console.log(`Node ${node.id}: pointing away from ${conn.incoming.length} incoming edge(s) at ${(targetAngle * 180 / Math.PI).toFixed(1)}°`);
       }
     }
     
@@ -90,7 +90,7 @@ export function layoutGfaNodes(gfaNodes, links) {
     } else {
       // Default orientation if no connections
       node.angle = 0;
-      console.log(`Node ${node.id}: no connections, using default orientation`);
+      // console.log(`Node ${node.id}: no connections, using default orientation`);
     }
     
     // Update node position with new angle
@@ -124,12 +124,12 @@ export function layoutGfaNodes(gfaNodes, links) {
           if (avgDx !== 0 || avgDy !== 0) {
             node.angle = Math.atan2(avgDy, avgDx);
             node.updatePosition();
-            console.log(`Linear node ${node.id}: smoothed to ${(node.angle * 180 / Math.PI).toFixed(1)}°`);
+            // console.log(`Linear node ${node.id}: smoothed to ${(node.angle * 180 / Math.PI).toFixed(1)}°`);
           }
         }
       }
     }
   });
-  
-  console.log('Node orientation completed');
+
+  // console.log('Node orientation completed');
 }

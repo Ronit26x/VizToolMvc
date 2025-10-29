@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Merge Fix</title>
+</head>
+<body>
+  <h1>Testing Merge Node Functionality</h1>
+  <div id="output"></div>
+
+  <script type="module">
+    import { mergeLinearChainFromNode } from './js/node-merger.js';
+
+    const output = document.getElementById('output');
+
+    function log(msg) {
+      output.innerHTML += msg + '<br>';
+      console.log(msg);
+    }
+
+    // Test case 1: Simple linear chain with object references (like D3 creates)
+    log('<h2>Test 1: Linear chain with object references</h2>');
+
+    const node1 = { id: '1', x: 0, y: 0, length: 100, depth: 1.0 };
+    const node2 = { id: '2', x: 100, y: 0, length: 100, depth: 1.0 };
+    const node3 = { id: '3', x: 200, y: 0, length: 100, depth: 1.0 };
+    const node4 = { id: '4', x: 300, y: 0, length: 100, depth: 1.0 };
+
+    const nodes = [node1, node2, node3, node4];
+
+    // Links with object references (like D3 force simulation creates)
+    const links = [
+      { source: node1, target: node2, srcOrientation: '+', tgtOrientation: '+' },
+      { source: node2, target: node3, srcOrientation: '+', tgtOrientation: '+' },
+      { source: node3, target: node4, srcOrientation: '+', tgtOrientation: '+' }
+    ];
+
+    try {
+      log('Starting merge from node 2...');
+      const result = mergeLinearChainFromNode(node2, nodes, links);
+
+      if (result.success) {
+        log(`✅ SUCCESS: Merged ${result.removedNodes} nodes into ${result.mergedNodeId}`);
+        log(`Original chain: ${result.originalNodeIds.join(' → ')}`);
+        log(`External connections: ${result.externalConnections}`);
+      } else {
+        log('❌ FAILED: Merge returned success=false');
+      }
+    } catch (error) {
+      log(`❌ ERROR: ${error.message}`);
+      log(`Stack: ${error.stack}`);
+    }
+
+    // Test case 2: Node with branching (should only return itself)
+    log('<h2>Test 2: Branching node (should fail)</h2>');
+
+    const node5 = { id: '5', x: 0, y: 100, length: 100, depth: 1.0 };
+    const node6 = { id: '6', x: 100, y: 100, length: 100, depth: 1.0 };
+    const node7 = { id: '7', x: 200, y: 100, length: 100, depth: 1.0 };
+    const node8 = { id: '8', x: 100, y: 200, length: 100, depth: 1.0 };
+
+    const branchingNodes = [node5, node6, node7, node8];
+
+    // Node6 has 3 connections (branching)
+    const branchingLinks = [
+      { source: node5, target: node6 },
+      { source: node6, target: node7 },
+      { source: node6, target: node8 }
+    ];
+
+    try {
+      log('Starting merge from node 6 (branching node)...');
+      const result = mergeLinearChainFromNode(node6, branchingNodes, branchingLinks);
+      log('❌ Should have thrown error for branching node');
+    } catch (error) {
+      log(`✅ Correctly threw error: ${error.message}`);
+    }
+
+    log('<h2>All tests complete! Check console for detailed logs.</h2>');
+  </script>
+</body>
+</html>

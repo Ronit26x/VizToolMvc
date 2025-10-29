@@ -39,10 +39,15 @@ export class GraphController extends EventEmitter {
 
   _setupModelListeners() {
     // When model changes, update view
-    this.model.on('graphLoaded', ({ nodes, links, format }) => {
+    this.model.on('graphLoaded', ({ nodes, links, format, source }) => {
       this.view.updateNodes(nodes);
       this.view.updateLinks(links);
       this.view.updateFormat(format);
+      // Invalidate GFA cache when graph structure changes (e.g., after resolution or undo)
+      // but NOT on initial user load (that would clear it before first render)
+      if (source === 'resolution' || source === 'undo') {
+        this.view.invalidateGfaNodes();
+      }
       this.view.render();
     });
 
@@ -54,6 +59,15 @@ export class GraphController extends EventEmitter {
     this.model.on('nodeRemoved', () => {
       this.view.updateNodes(this.model.nodes);
       this.view.updateLinks(this.model.links);
+      this.view.render();
+    });
+
+    this.model.on('nodesMerged', () => {
+      console.log('[GraphController] nodesMerged event - updating view');
+      this.view.updateNodes(this.model.nodes);
+      this.view.updateLinks(this.model.links);
+      // Invalidate GFA nodes cache so they get recreated with the merged node
+      this.view.invalidateGfaNodes();
       this.view.render();
     });
 

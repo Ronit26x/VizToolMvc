@@ -5,11 +5,12 @@ import { exportAllPathsToFile, showExportPreviewDialog, addExportStyles } from '
 import { importPathsFromText, showImportResultsDialog, addImportStyles } from './path-importer.js';
 import { DotParser } from './utils/parsers/DotParser.js';
 import { GfaParser } from './utils/parsers/GfaParser.js';
-import { flipSelectedNode } from './gfa-renderer.js';
 import { updatePathsAfterResolution, showPathUpdateSummary } from './path-updater.js';
 import { showPathUpdateDialog, markUpdatedPathsInUI, addPathUpdateStyles } from './path-update-ui.js';
 import { exportPathSequence } from './sequence-exporter.js';
-import { mergeLinearChainFromNode, exportMergedNodeSequence, isMergedNode, getMergedNodeInfo, updatePathsAfterMerge } from './node-merger.js';
+import { GraphAdapter } from './core/GraphAdapter.js';
+import { NodeMerger } from './operations/NodeMerger.js';
+import { exportMergedNodeSequence, isMergedNode, getMergedNodeInfo, updatePathsAfterMerge } from './operations/node-merger-utils.js';
 
 // ===== MVC SYSTEM INITIALIZATION =====
 
@@ -238,14 +239,6 @@ function handleNodeClick(nodeId) {
     infoHTML += `<br><br><em>Note: Click "Export Merged Sequence" to view the combined sequence</em>`;
   } else {
     // Regular node info
-    if (legacy.currentFormat === 'gfa' && model.nodes._gfaNodes) {
-      const gfaNode = model.nodes._gfaNodes.find(n => n.id === node.id);
-      if (gfaNode) {
-        infoHTML += `<br><em>Flipped: ${gfaNode.isFlipped ? 'Yes' : 'No'}</em>`;
-        infoHTML += `<br><em>Angle: ${(gfaNode.angle * 180 / Math.PI).toFixed(1)}°</em>`;
-      }
-    }
-
     // Connection info (for resolution)
     const connections = getVertexConnections(node.id);
     const physicalConnections = getPhysicalConnections(node.id);
@@ -832,12 +825,11 @@ function setupLegacyOperations() {
       return;
     }
 
-    // Use the view's nodes array which has _gfaNodes attached
-    const flipped = flipSelectedNode(view._nodes, { nodes: selectedNodes });
+    // Use the view's flipSelectedNodes method (MVC GfaRenderer)
+    const flipped = view.flipSelectedNodes(selectedNodes);
     if (flipped) {
       logEvent(`Flipped ${selectedNodes.size} node(s)`);
       mvc.layout.simulation.alpha(0.1).restart();
-      view.render();
     }
   };
 
@@ -870,7 +862,7 @@ function setupLegacyOperations() {
   });
   document.getElementById('dialogOverlay').addEventListener('click', hideResolveDialog);
 
-  // Node merging - USING WORKING LOGIC FROM OLD MAIN.JS
+  // Node merging - USING NEW OPERATION-BASED ARCHITECTURE
   document.getElementById('mergeNodes').onclick = () => {
     const selectedNodes = model.selectedNodes;
     if (selectedNodes.size !== 1) {
@@ -880,48 +872,38 @@ function setupLegacyOperations() {
     }
 
     const selectedNodeId = Array.from(selectedNodes)[0];
-    const selectedNode = model.getNode(selectedNodeId);
-
-    if (!selectedNode) {
-      alert('Selected node not found');
-      logEvent('Selected node not found in graph');
-      return;
-    }
 
     try {
-      logEvent(`Starting linear chain detection from node: ${selectedNode.id}`);
+      logEvent(`Starting linear chain detection from node: ${selectedNodeId}`);
 
-      // Store original state for undo (matching old logic)
-      const originalNodes = [...model.nodes];
-      const originalLinks = [...model.links];
+      // Create adapter and operation
+      const graphAdapter = new GraphAdapter(model);
+      const merger = new NodeMerger(graphAdapter, selectedNodeId);
 
-      // Use the existing merge logic (EXACTLY as in old main.js line 202)
-      const mergeResult = mergeLinearChainFromNode(selectedNode, model.nodes, model.links);
+      // Execute merge
+      const result = merger.execute();
 
-      if (mergeResult.success) {
-        // Update model with merged graph (matching old logic lines 206-211)
-        model.loadGraph(mergeResult.newNodes, mergeResult.newLinks, legacy.currentFormat, 'merge');
+      // Update saved paths to reflect the merge
+      const updatedPaths = updatePathsAfterMerge(model.savedPaths, {
+        mergedNodeId: result.mergedNodeId,
+        originalNodeIds: result.originalNodeIds,
+        mergedNode: result.mergedNode
+      });
+      model._savedPaths = updatedPaths;
 
-        // Update saved paths to reflect the merge (matching old logic line 214)
-        const updatedPaths = updatePathsAfterMerge(model.savedPaths, mergeResult);
-        model._savedPaths = updatedPaths;
+      // Clear selections
+      model.deselectNodes();
 
-        // Clear selections (matching old logic lines 217-220)
-        model.deselectNodes();
+      // Update UI
+      updatePathUI();
+      updateMergeButtons();
 
-        // Update UI (matching old logic lines 223-228)
-        updatePathUI();
-        updateMergeButtons();
+      // Restart layout
+      controller.redraw();
 
-        // Restart layout (matching old logic line 230)
-        controller.redraw();
-
-        logEvent(`✅ Successfully merged linear chain: ${mergeResult.originalNodeIds.join(' → ')} into ${mergeResult.mergedNodeId}`);
-        logEvent(`   Chain length: ${mergeResult.removedNodes} nodes`);
-        logEvent(`   Preserved ${mergeResult.externalConnections} external connections`);
-      } else {
-        throw new Error('Linear chain merge operation failed');
-      }
+      logEvent(`✅ Successfully merged linear chain: ${result.originalNodeIds.join(' → ')} into ${result.mergedNodeId}`);
+      logEvent(`   Chain length: ${result.removedNodes} nodes`);
+      logEvent(`   Preserved ${result.externalConnections} external connections`);
     } catch (error) {
       console.error('Error during linear chain merge:', error);
       alert(`Error merging linear chain: ${error.message}`);

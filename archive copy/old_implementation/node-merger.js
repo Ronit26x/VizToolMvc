@@ -8,9 +8,14 @@
  * @returns {Object} Result of the merge operation
  */
 export function mergeLinearChainFromNode(selectedNode, nodes, links) {
-  console.log(`\n🔍 === AUTOMATIC LINEAR CHAIN DETECTION ===`);
+  console.log(`\n\n${'='.repeat(80)}`);
+  console.log(`🔍 === AUTOMATIC LINEAR CHAIN DETECTION ===`);
   console.log(`Starting from node: ${selectedNode.id}`);
-  
+  console.log(`Total nodes in graph: ${nodes.length}`);
+  console.log(`Total links in graph: ${links.length}`);
+  console.log(`Sample link structure:`, links[0]);
+  console.log(`${'='.repeat(80)}\n`);
+
   // Find the complete linear chain containing this node
   const linearChain = findLinearChain(selectedNode, nodes, links);
   
@@ -32,52 +37,61 @@ export function mergeLinearChainFromNode(selectedNode, nodes, links) {
  */
 function findLinearChain(startNode, nodes, links) {
   console.log(`\n🔗 === FINDING LINEAR CHAIN FROM ${startNode.id} ===`);
-  
+
   // Build simple connection counts for all nodes
   const nodeConnections = buildNodeConnections(nodes, links);
-  
+
   // Check if the start node is part of a linear chain
-  const startConnections = nodeConnections.get(startNode.id);
+  const startNodeId = normalizeNodeId(startNode.id);
+  const startConnections = nodeConnections.get(startNodeId);
   if (!startConnections) {
     console.log(`❌ Start node ${startNode.id} has no connections`);
     return [startNode];
   }
-  
-  console.log(`🔍 Start node ${startNode.id}: ${startConnections.incoming.length} in, ${startConnections.outgoing.length} out`);
-  
+
+  const totalConns = startConnections.incoming.length + startConnections.outgoing.length;
+  console.log(`🔍 Start node ${startNode.id}: ${startConnections.incoming.length} in, ${startConnections.outgoing.length} out (total: ${totalConns})`);
+
+  if (startConnections.incoming.length > 0) {
+    console.log(`  Incoming from: ${startConnections.incoming.map(c => c.nodeId).join(', ')}`);
+  }
+  if (startConnections.outgoing.length > 0) {
+    console.log(`  Outgoing to: ${startConnections.outgoing.map(c => c.nodeId).join(', ')}`);
+  }
+
   // If start node is branching (3+ connections), only return itself
   if (!isLinearOrEndpointNode(startNode.id, nodeConnections)) {
-    console.log(`❌ Start node ${startNode.id} is branching - returning single node`);
+    console.log(`❌ Start node ${startNode.id} is branching (total connections: ${totalConns} > 2) - returning single node`);
     return [startNode];
   }
-  
+
   // Build chain in both directions from start node
   const chainNodes = [startNode];
-  const visitedIds = new Set([startNode.id]);
+  const visitedIds = new Set([startNodeId]);
   
   // Trace backwards
   let currentNode = startNode;
   while (true) {
     const prevNode = getLinearPreviousNode(currentNode, nodeConnections, nodes, visitedIds);
     if (!prevNode) break;
-    
+
     chainNodes.unshift(prevNode);
-    visitedIds.add(prevNode.id);
+    visitedIds.add(normalizeNodeId(prevNode.id));
     currentNode = prevNode;
-    
+
     console.log(`  ⬅️ Added ${prevNode.id} to start of chain`);
   }
-  
+
   // Trace forwards
   currentNode = startNode;
   while (true) {
     const nextNode = getLinearNextNode(currentNode, nodeConnections, nodes, visitedIds);
     if (!nextNode) break;
-    
+
     chainNodes.push(nextNode);
-    visitedIds.add(nextNode.id);
+    visitedIds.add(normalizeNodeId(nextNode.id));
     currentNode = nextNode;
-    
+
     console.log(`  ➡️ Added ${nextNode.id} to end of chain`);
   }
   
@@ -92,108 +106,195 @@ function findLinearChain(startNode, nodes, links) {
 }
 
 /**
- * Build connection information for all nodes - SIMPLEST POSSIBLE VERSION
- * Just count how many nodes each node connects to/from
+ * Build connection information for all nodes
+ * For GFA: Uses PHYSICAL connections (red/green subnodes based on orientations)
+ * For DOT: Uses LOGICAL connections (source→target)
  */
 function buildNodeConnections(nodes, links) {
-  console.log(`📋 Building SIMPLE connections from ${links.length} links...`);
-  
+  console.log(`📋 Building connections from ${links.length} links...`);
+
   const connections = new Map();
-  
-  // Initialize all nodes
+
+  // Initialize all nodes - normalize IDs
   nodes.forEach(node => {
-    connections.set(node.id, {
-      incoming: [], // Just store connected node IDs
-      outgoing: []  // Just store connected node IDs
+    const normalizedId = normalizeNodeId(node.id);
+    connections.set(normalizedId, {
+      incoming: [], // Red subnode (incoming) for GFA, or logical incoming
+      outgoing: []  // Green subnode (outgoing) for GFA, or logical outgoing
     });
   });
-  
-  // Process all links - just track which nodes connect to which
+
+  // Detect if this is GFA format by checking for orientation markers
+  const isGFA = links.length > 0 && links.some(link =>
+    link.srcOrientation !== undefined || link.tgtOrientation !== undefined
+  );
+
+  console.log(`📊 Format detected: ${isGFA ? 'GFA (using physical connections)' : 'DOT (using logical connections)'}`);
+
+  // Process all links
   links.forEach((link, linkIndex) => {
-    const sourceId = normalizeNodeId(link.source.id || link.source);
-    const targetId = normalizeNodeId(link.target.id || link.target);
-    
+    // Handle both string IDs and object references (after D3 processing)
+    const sourceId = normalizeNodeId(
+      link.source?.id !== undefined ? link.source.id : link.source
+    );
+    const targetId = normalizeNodeId(
+      link.target?.id !== undefined ? link.target.id : link.target
+    );
+
     if (!connections.has(sourceId) || !connections.has(targetId)) {
+      console.log(`⚠️ Skipping link ${linkIndex}: source=${sourceId}, target=${targetId} (node not found)`);
       return; // Skip links to non-existent nodes
     }
-    
-    // Simple: source connects TO target, target connects FROM source
-    connections.get(sourceId).outgoing.push({ nodeId: targetId });
-    connections.get(targetId).incoming.push({ nodeId: sourceId });
+
+    if (isGFA) {
+      // GFA: Use PHYSICAL connections based on orientations
+      // + orientation = green (outgoing) subnode
+      // - orientation = red (incoming) subnode
+
+      const srcOrientation = link.srcOrientation || '+';
+      const tgtOrientation = link.tgtOrientation || '+';
+
+      // Source node connection
+      if (srcOrientation === '+') {
+        // Source uses green (outgoing) subnode
+        connections.get(sourceId).outgoing.push({ nodeId: targetId });
+      } else {
+        // Source uses red (incoming) subnode
+        connections.get(sourceId).incoming.push({ nodeId: targetId });
+      }
+
+      // Target node connection
+      if (tgtOrientation === '+') {
+        // Target uses red (incoming) subnode
+        connections.get(targetId).incoming.push({ nodeId: sourceId });
+      } else {
+        // Target uses green (outgoing) subnode
+        connections.get(targetId).outgoing.push({ nodeId: sourceId });
+      }
+    } else {
+      // DOT: Use LOGICAL connections (simple source→target)
+      connections.get(sourceId).outgoing.push({ nodeId: targetId });
+      connections.get(targetId).incoming.push({ nodeId: sourceId });
+    }
   });
   
-  // Show what we found
-  console.log(`\n📊 === SIMPLE CONNECTION COUNTS ===`);
-  connections.forEach((conn, nodeId) => {
+  // Show what we found - only log a summary
+  const stats = { isolated: 0, endpoint: 0, linear: 0, branching: 0 };
+  connections.forEach((conn) => {
     const inCount = conn.incoming.length;
     const outCount = conn.outgoing.length;
-    
-    let type = 'isolated';
-    if (inCount + outCount === 1) type = 'endpoint';
-    else if (inCount === 1 && outCount === 1) type = 'linear';
-    else if (inCount + outCount > 2) type = 'branching';
-    
-    console.log(`  Node ${nodeId}: ${inCount} in, ${outCount} out → ${type}`);
+
+    if (inCount + outCount === 0) stats.isolated++;
+    else if (inCount + outCount === 1) stats.endpoint++;
+    else if (inCount === 1 && outCount === 1) stats.linear++;
+    else if (inCount + outCount > 2) stats.branching++;
   });
+
+  console.log(`\n📊 === CONNECTION SUMMARY ===`);
+  console.log(`  Isolated: ${stats.isolated}, Endpoints: ${stats.endpoint}, Linear: ${stats.linear}, Branching: ${stats.branching}`);
   
   return connections;
 }
 
 // ULTRA SIMPLE: Just follow the chain until you hit branching
 function getLinearPreviousNode(currentNode, connections, nodes, visited) {
-  const conn = connections.get(currentNode.id);
-  if (!conn || conn.incoming.length !== 1) {
-    return null; // Need exactly 1 incoming to continue backwards
+  const currentId = normalizeNodeId(currentNode.id);
+  const conn = connections.get(currentId);
+
+  if (!conn) {
+    console.log(`  ⚠️ No connection data for ${currentId}`);
+    return null;
   }
-  
+
+  // Can go backwards if we have incoming connections (even if current is endpoint with 0 outgoing)
+  if (conn.incoming.length === 0) {
+    console.log(`  ⏹️ Stopping backwards: ${currentId} has no incoming connections`);
+    return null;
+  }
+
+  if (conn.incoming.length > 1) {
+    console.log(`  ⏹️ Stopping backwards: ${currentId} has ${conn.incoming.length} incoming (multiple paths converge here)`);
+    return null;
+  }
+
   const prevNodeId = conn.incoming[0].nodeId;
+
   if (visited.has(prevNodeId)) {
+    console.log(`  🔄 Stopping backwards: ${prevNodeId} already visited (cycle detected)`);
     return null; // Cycle detection
   }
-  
+
   const prevConnections = connections.get(prevNodeId);
   if (!prevConnections) {
+    console.log(`  ❌ Stopping backwards: No connection data for ${prevNodeId}`);
     return null; // Node not found
   }
-  
+
   // SIMPLE: Previous node can be part of chain if it's not branching
   const totalConnections = prevConnections.incoming.length + prevConnections.outgoing.length;
-  
+
   if (totalConnections > 2) {
-    console.log(`  🌳 Previous node ${prevNodeId} is branching (${totalConnections} total connections) - stopping`);
+    console.log(`  🌳 Stopping backwards: ${prevNodeId} is branching (${totalConnections} total connections)`);
     return null; // This is a branching node, stop here
   }
-  
+
   const prevNode = nodes.find(n => normalizeNodeId(n.id) === prevNodeId);
+
+  if (!prevNode) {
+    console.log(`  ❌ Stopping backwards: Node ${prevNodeId} not found in nodes array`);
+  }
+
   return prevNode || null;
 }
 
 // ULTRA SIMPLE: Just follow the chain until you hit branching
 function getLinearNextNode(currentNode, connections, nodes, visited) {
-  const conn = connections.get(currentNode.id);
-  if (!conn || conn.outgoing.length !== 1) {
-    return null; // Need exactly 1 outgoing to continue forwards
+  const currentId = normalizeNodeId(currentNode.id);
+  const conn = connections.get(currentId);
+
+  if (!conn) {
+    console.log(`  ⚠️ No connection data for ${currentId}`);
+    return null;
   }
-  
+
+  // Can go forwards if we have outgoing connections (even if current is endpoint with 0 incoming)
+  if (conn.outgoing.length === 0) {
+    console.log(`  ⏹️ Stopping forwards: ${currentId} has no outgoing connections`);
+    return null;
+  }
+
+  if (conn.outgoing.length > 1) {
+    console.log(`  ⏹️ Stopping forwards: ${currentId} has ${conn.outgoing.length} outgoing (multiple paths diverge here)`);
+    return null;
+  }
+
   const nextNodeId = conn.outgoing[0].nodeId;
+
   if (visited.has(nextNodeId)) {
+    console.log(`  🔄 Stopping forwards: ${nextNodeId} already visited (cycle detected)`);
     return null; // Cycle detection
   }
-  
+
   const nextConnections = connections.get(nextNodeId);
   if (!nextConnections) {
+    console.log(`  ❌ Stopping forwards: No connection data for ${nextNodeId}`);
     return null; // Node not found
   }
-  
+
   // SIMPLE: Next node can be part of chain if it's not branching
   const totalConnections = nextConnections.incoming.length + nextConnections.outgoing.length;
-  
+
   if (totalConnections > 2) {
-    console.log(`  🌳 Next node ${nextNodeId} is branching (${totalConnections} total connections) - stopping`);
+    console.log(`  🌳 Stopping forwards: ${nextNodeId} is branching (${totalConnections} total connections)`);
     return null; // This is a branching node, stop here
   }
-  
+
   const nextNode = nodes.find(n => normalizeNodeId(n.id) === nextNodeId);
+
+  if (!nextNode) {
+    console.log(`  ❌ Stopping forwards: Node ${nextNodeId} not found in nodes array`);
+  }
+
   return nextNode || null;
 }
 
@@ -202,11 +303,12 @@ function getLinearNextNode(currentNode, connections, nodes, visited) {
  * Linear chain = any node with ≤ 2 total connections (not branching)
  */
 function isLinearOrEndpointNode(nodeId, connections) {
-  const conn = connections.get(nodeId);
+  const normalizedId = normalizeNodeId(nodeId);
+  const conn = connections.get(normalizedId);
   if (!conn) return false;
-  
+
   const totalConnections = conn.incoming.length + conn.outgoing.length;
-  
+
   // Can be part of linear chain if it has 1 or 2 connections (not branching)
   return totalConnections <= 2;
 }
@@ -278,10 +380,14 @@ function generateMergedNodeId(pathNodes) {
 function collectExternalConnections(pathNodes, links) {
   const pathNodeIds = new Set(pathNodes.map(n => normalizeNodeId(n.id)));
   const externalConnections = [];
-  
+
   links.forEach((link, linkIndex) => {
-    const sourceId = normalizeNodeId(link.source.id || link.source);
-    const targetId = normalizeNodeId(link.target.id || link.target);
+    const sourceId = normalizeNodeId(
+      link.source?.id !== undefined ? link.source.id : link.source
+    );
+    const targetId = normalizeNodeId(
+      link.target?.id !== undefined ? link.target.id : link.target
+    );
     
     const sourceInPath = pathNodeIds.has(sourceId);
     const targetInPath = pathNodeIds.has(targetId);
@@ -376,10 +482,14 @@ function removeOriginalNodes(nodes, pathNodes) {
  */
 function removeInternalLinks(links, pathNodes) {
   const pathNodeIds = new Set(pathNodes.map(n => normalizeNodeId(n.id)));
-  
+
   return links.filter(link => {
-    const sourceId = normalizeNodeId(link.source.id || link.source);
-    const targetId = normalizeNodeId(link.target.id || link.target);
+    const sourceId = normalizeNodeId(
+      link.source?.id !== undefined ? link.source.id : link.source
+    );
+    const targetId = normalizeNodeId(
+      link.target?.id !== undefined ? link.target.id : link.target
+    );
     
     const sourceInPath = pathNodeIds.has(sourceId);
     const targetInPath = pathNodeIds.has(targetId);
@@ -507,8 +617,8 @@ export function updatePathsAfterMerge(savedPaths, mergeResult) {
   const updatedPaths = [];
   
   console.log(`\n📄 Updating ${savedPaths.length} saved paths after merge...`);
-  
-  savedPaths.forEach((path, pathIndex) => {
+
+  savedPaths.forEach((path) => {
     const pathNodeIds = path.sequence.split(',').map(id => id.trim());
     let pathModified = false;
     let newSequence = [...pathNodeIds];

@@ -1,7 +1,8 @@
 // GraphView.js - Rendering layer with DOM event handling
 
 import { EventEmitter } from './EventEmitter.js';
-import { drawGraph } from '../renderer.js';
+import { GfaRenderer } from '../view/renderers/GfaRenderer.js';
+import { DotRenderer } from '../view/renderers/DotRenderer.js';
 
 /**
  * GraphView handles all rendering and DOM interactions.
@@ -41,8 +42,11 @@ export class GraphView extends EventEmitter {
     this._dragNode = null;
     this._dragStartPos = null;
 
-    // GFA-specific state
-    this._gfaNodes = null;
+    // Initialize MVC renderers
+    this._dotRenderer = new DotRenderer();
+    this._gfaRenderer = new GfaRenderer();
+    this._dotRenderer.initialize(canvas, ctx);
+    this._gfaRenderer.initialize(canvas, ctx);
 
     this._setupCanvas();
     this._setupZoom();
@@ -78,22 +82,27 @@ export class GraphView extends EventEmitter {
   // ===== RENDERING =====
 
   /**
-   * Main render function - delegates to existing renderers
+   * Main render function - delegates to MVC renderers
    */
   render() {
     if (!this.canvas || !this.ctx) return;
 
-    drawGraph(
-      this.ctx,
-      this.canvas,
-      this.transform,
-      this._nodes,
-      this._links,
-      this._pinnedNodes,
-      { nodes: this._selectedNodes, edges: this._selectedEdges },
-      this._format,
-      this._highlightedPath
-    );
+    const renderData = {
+      nodes: this._nodes,
+      edges: this._links,
+      transform: this.transform,
+      selection: { nodes: this._selectedNodes, edges: this._selectedEdges },
+      pinnedNodes: this._pinnedNodes,
+      highlightedPath: this._highlightedPath,
+      scaleFactor: 1.0
+    };
+
+    // Route to appropriate renderer based on format
+    if (this._format === 'gfa') {
+      this._gfaRenderer.render(renderData);
+    } else {
+      this._dotRenderer.render(renderData);
+    }
   }
 
   /**
@@ -113,11 +122,40 @@ export class GraphView extends EventEmitter {
    */
   updateNodes(nodes) {
     this._nodes = nodes;
+  }
 
-    // For GFA format, preserve the _gfaNodes reference if it exists
-    if (this._format === 'gfa' && this._nodes._gfaNodes) {
-      this._gfaNodes = this._nodes._gfaNodes;
+  /**
+   * Invalidate GFA nodes cache (forces recreation on next render)
+   * Called after graph structure changes (e.g., node merging)
+   */
+  invalidateGfaNodes() {
+    console.log('[GraphView] Invalidating GFA nodes cache - will be recreated on next render');
+    this._gfaRenderer.clearCache();
+  }
+
+  /**
+   * Flip selected GFA nodes
+   * @param {Set} selectedNodeIds - Set of node IDs to flip
+   * @returns {boolean} True if any nodes were flipped
+   */
+  flipSelectedNodes(selectedNodeIds) {
+    if (this._format !== 'gfa') {
+      console.warn('[GraphView] flipSelectedNodes only works for GFA format');
+      return false;
     }
+
+    let flipped = false;
+    for (const nodeId of selectedNodeIds) {
+      if (this._gfaRenderer.flipNode(nodeId)) {
+        flipped = true;
+      }
+    }
+
+    if (flipped) {
+      this.render();
+    }
+
+    return flipped;
   }
 
   /**
@@ -260,12 +298,11 @@ export class GraphView extends EventEmitter {
   // ===== HIT DETECTION =====
 
   _findNodeAt(x, y) {
-    // For GFA format, use GFA node hit detection
-    if (this._format === 'gfa' && this._nodes._gfaNodes) {
-      for (let i = 0; i < this._nodes.length; i++) {
-        const gfaNode = this._nodes._gfaNodes[i];
-        if (gfaNode && gfaNode.contains(x, y)) {
-          return this._nodes[i];
+    // For GFA format, use GFA renderer's hit detection
+    if (this._format === 'gfa') {
+      for (const node of this._nodes) {
+        if (this._gfaRenderer.hitTest(node, x, y)) {
+          return node;
         }
       }
       return null;
